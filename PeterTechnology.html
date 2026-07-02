@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Peter Technology - متجر إلكتروني</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Animate.css -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    
+    <!-- Firebase SDK (V8 Compat) -->
+    <!-- مكتبات Firebase -->
+    <!-- Firebase Libraries -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+</head>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap');
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #050505;
+            color: #ffffff;
+            margin: 0;
+            padding-bottom: 80px;
+            overflow-x: hidden;
+        }
+        .neon-text { text-shadow: 0 0 15px rgba(0, 255, 102, 0.8); color: #00ff66; }
+        .neon-bg { background-color: #00ff66; color: #000; transition: all 0.3s ease; }
+        .neon-bg:hover { transform: scale(1.03); box-shadow: 0 0 15px rgba(0, 255, 102, 0.6); }
+        .dark-card { background-color: #111; border-radius: 20px; overflow: hidden; border: 1px solid #222; transition: all 0.3s ease; }
+        .dark-card:hover { transform: translateY(-5px); border-color: #00ff66; box-shadow: 0 5px 15px rgba(0, 255, 102, 0.2); }
+        .category-pill { background-color: #1a1a1a; border-radius: 20px; padding: 8px 20px; cursor: pointer; transition: all 0.3s ease; }
+        .category-pill:hover { background-color: #252525; }
+        .category-pill.active { background-color: #00ff66; color: #000; font-weight: bold; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background-color: #0a0a0a; border-top: 1px solid #222; display: flex; justify-content: space-around; padding: 12px 0; z-index: 1000; }
+        .nav-item { text-align: center; color: #666; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 13px; transition: all 0.3s; }
+        .nav-item:hover { color: #fff; }
+        .nav-item.active { color: #00ff66; transform: scale(1.1); }
+        .page-section { display: none; padding: 20px; }
+        .page-section.active { display: block; }
+        .custom-input { width: 100%; background: #1a1a1a; border: 1px solid #333; padding: 12px; border-radius: 10px; color: #fff; margin-bottom: 15px; transition: all 0.3s; }
+        .custom-input:focus { outline: none; border-color: #00ff66; background: #222; }
+        
+        .file-upload-btn { background: #1a1a1a; border: 2px dashed #333; padding: 15px; border-radius: 10px; text-align: center; cursor: pointer; margin-bottom: 15px; transition: all 0.3s; }
+        .file-upload-btn:hover { border-color: #00ff66; background: #222; }
+        
+        /* Loading Overlay */
+        #loader { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        .spinner { border: 4px solid rgba(255, 255, 255, 0.1); width: 50px; height: 50px; border-radius: 50%; border-left-color: #00ff66; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <!-- شاشة التحميل الأولية لقاعدة البيانات -->
+    <div id="loader">
+        <div class="spinner mb-4"></div>
+        <p class="text-green-500 font-bold animate__animated animate__pulse animate__infinite">جاري جلب المنتجات...</p>
+    </div>
+
+    <!-- واجهة المتجر الرئيسية -->
+    <div id="storePage" class="page-section active animate__animated animate__fadeIn">
+        <div class="flex justify-between items-center mb-6">
+            <div class="w-12 h-12 rounded-full border border-green-500 flex items-center justify-center animate__animated animate__pulse animate__infinite">
+                <i class="fa-solid fa-microchip text-green-500 text-xl"></i>
+            </div>
+            <div class="text-left">
+                <h1 class="text-3xl font-black neon-text">Peter Technology</h1>
+                <p class="text-gray-400 text-xs text-left">أحدث تقنيات وإكسسوارات الجيمنج</p>
+            </div>
+        </div>
+
+        <!-- شريط البحث -->
+        <div class="relative mb-6">
+            <input type="text" oninput="searchProducts(this.value)" placeholder="بحث عن منتج..." class="w-full py-3 pr-10 pl-4 bg-zinc-900 rounded-full text-white placeholder-gray-500 outline-none border border-zinc-800 focus:border-green-500 transition">
+            <i class="fa-solid fa-search absolute right-4 top-4 text-gray-500"></i>
+        </div>
+
+        <!-- الأقسام والتصنيفات -->
+        <div id="categoriesContainer" class="flex gap-3 mb-6 overflow-x-auto pb-2">
+            <div class="category-pill active whitespace-nowrap" onclick="filterCategory('الكل')">الكل</div>
+        </div>
+
+        <!-- شبكة المنتجات -->
+        <div id="productsGrid" class="grid grid-cols-2 gap-4"></div>
+    </div>
+
+    <!-- نافذة تفاصيل المنتج -->
+    <div id="productModal" class="fixed inset-0 bg-black/85 flex items-center justify-center p-4 hidden z-50 animate__animated animate__fadeIn">
+        <div class="bg-zinc-900 p-6 rounded-2xl w-full max-w-md border border-zinc-800 relative animate__animated animate__zoomIn animate__fast">
+            <button onclick="closeModal()" class="absolute top-4 left-4 text-gray-400 text-2xl hover:text-white transition">&times;</button>
+            <div id="modalMediaContainer" class="w-full h-48 rounded-xl mb-4 overflow-hidden bg-black flex items-center justify-center"></div>
+            <h3 id="modalName" class="text-2xl font-bold mb-1"></h3>
+            <p id="modalCategory" class="text-green-500 text-sm mb-2"></p>
+            <p id="modalPrice" class="text-xl font-black text-white mb-4"></p>
+            
+            <div class="mb-4">
+                <label class="block text-sm text-gray-400 mb-2">اختر اللون:</label>
+                <select id="modalColor" class="w-full bg-zinc-800 border border-zinc-700 p-2 rounded-lg text-white outline-none focus:border-green-500">
+                    <option value="أسود غامق">أسود غامق</option>
+                    <option value="أبيض سيبر">أبيض سيبر</option>
+                    <option value="أحمر نيون">أحمر نيون</option>
+                </select>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm text-gray-400 mb-2">الكمية:</label>
+                <div class="flex items-center gap-4">
+                    <button onclick="changeQty(-1)" class="bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded text-xl transition">-</button>
+                    <span id="modalQty" class="text-xl font-bold">1</span>
+                    <button onclick="changeQty(1)" class="bg-zinc-800 hover:bg-zinc-700 px-3 py-1 rounded text-xl transition">+</button>
+                </div>
+            </div>
+
+            <button onclick="confirmAddToCart()" class="w-full neon-bg py-3 rounded-xl font-bold">إضافة إلى السلة</button>
+        </div>
+    </div>
+
+    <!-- واجهة السلة -->
+    <div id="cartPage" class="page-section animate__animated animate__fadeIn">
+        <h2 class="text-2xl font-bold mb-6 text-green-500"><i class="fa-solid fa-cart-shopping"></i> سلة المشتريات</h2>
+        <div id="cartItems" class="mb-6"></div>
+        
+        <div class="bg-zinc-900 p-4 rounded-xl mb-6 border border-zinc-800">
+            <h3 class="mb-4 font-bold text-green-500 border-b border-zinc-800 pb-2">بيانات الشحن والتوصيل</h3>
+            
+            <input type="text" id="custName" placeholder="الاسم بالكامل" class="custom-input">
+            <input type="tel" id="custPhone" placeholder="رقم الموبايل" class="custom-input">
+            
+            <label class="block text-sm text-gray-400 mb-1">المحافظة:</label>
+            <select id="govSelect" class="custom-input" onchange="renderCart()"></select>
+            
+            <input type="text" id="custCity" placeholder="المدينة / المنطقة" class="custom-input">
+            <input type="text" id="custStreet" placeholder="اسم الشارع" class="custom-input">
+            <div class="grid grid-cols-2 gap-2">
+                <input type="text" id="custBuild" placeholder="رقم العمارة" class="custom-input">
+                <input type="text" id="custFloor" placeholder="الطابق / الشقة" class="custom-input">
+            </div>
+
+            <h3 class="mb-3 font-bold mt-2">طريقة الدفع</h3>
+            <div class="flex items-center gap-3 p-3 border border-green-500 rounded-lg text-green-500 bg-black animate__animated animate__flash animate__infinite animate__slower">
+                <i class="fa-solid fa-money-bill-wave"></i>
+                <span>كاش عند الاستلام (COD)</span>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center text-xl font-bold mb-4">
+            <span>الإجمالي العام:</span>
+            <span id="totalPrice" class="text-green-500">0 ج.م</span>
+        </div>
+        <button onclick="checkout()" class="w-full neon-bg py-3 rounded-xl font-bold text-lg"><i class="fa-brands fa-whatsapp ml-2"></i> تأكيد الطلب عبر واتساب</button>
+    </div>
+
+    <!-- واجهة تسجيل دخول الإدارة -->
+    <div id="accountPage" class="page-section animate__animated animate__fadeIn">
+        <h2 class="text-2xl font-bold mb-8 text-center text-green-500">تسجيل دخول الإدارة</h2>
+        <div class="bg-zinc-900 p-6 rounded-2xl border border-zinc-800 max-w-md mx-auto">
+            <h3 class="text-lg font-bold mb-6 text-center text-zinc-400">لوحة تحكم إدارة Peter Technology</h3>
+            <input type="text" id="adminUser" placeholder="اسم الأدمن" class="custom-input">
+            <input type="password" id="adminPass" placeholder="كلمة المرور" class="custom-input">
+            <button onclick="loginAdmin()" class="w-full neon-bg py-3 rounded-xl font-bold">دخول الأدمن</button>
+        </div>
+    </div>
+
+    <!-- لوحة تحكم الإدارة الكاملة -->
+    <div id="adminPage" class="page-section animate__animated animate__fadeIn">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-2xl font-bold text-green-500">لوحة تحكم الإدارة</h2>
+            <button onclick="logoutAdmin()" class="text-red-500 border border-red-500/30 px-3 py-1 rounded-lg hover:bg-red-950 transition"><i class="fa-solid fa-right-from-bracket"></i> خروج</button>
+        </div>
+
+        <!-- استمارة الإضافة والتعديل -->
+        <div class="bg-zinc-900 p-5 rounded-xl mb-8 border border-zinc-800">
+            <h3 class="text-xl font-bold mb-4 text-green-400" id="formTitle">إضافة منتج جديد</h3>
+            <input type="hidden" id="editId">
+            <input type="text" id="pCategory" placeholder="الصنف (مثال: سماعات)" class="custom-input">
+            <input type="text" id="pName" placeholder="اسم المنتج (اختياري)" class="custom-input">
+            <input type="number" id="pPrice" placeholder="السعر بالجنيه (اختياري)" class="custom-input">
+            
+            <label class="block text-sm text-gray-400 mb-1">صورة المنتج:</label>
+            <div class="file-upload-btn" onclick="document.getElementById('imageFileInput').click()">
+                <i class="fa-regular fa-image text-2xl text-gray-500 mb-1 block"></i>
+                <span id="imageFileStatus" class="text-xs text-gray-400">اضغط لرفع صورة</span>
+            </div>
+            <input type="file" id="imageFileInput" accept="image/*" class="hidden" onchange="handleFileSelect(this, 'image')">
+
+            <button onclick="saveProduct()" class="w-full neon-bg py-3 rounded-xl font-bold" id="saveBtn">حفظ المنتج في المتجر</button>
+        </div>
+
+        <h3 class="text-xl font-bold mb-4 text-zinc-400">المنتجات الحالية وقائمة التعديل والمسح</h3>
+        <div id="adminProductsList" class="space-y-3"></div>
+    </div>
+
+    <!-- القائمة السفلية -->
+    <nav class="bottom-nav">
+        <div class="nav-item" onclick="switchTab('accountPage', this)">
+            <i class="fa-regular fa-user text-xl"></i>
+            <span>الحساب</span>
+        </div>
+        <div class="nav-item" onclick="switchTab('cartPage', this)">
+            <i class="fa-solid fa-cart-shopping text-xl"></i>
+            <span>السلة</span>
+        </div>
+        <div class="nav-item active" onclick="switchTab('storePage', this)">
+            <i class="fa-solid fa-store text-xl"></i>
+            <span>المتجر</span>
+        </div>
+    </nav>
+
+    <script>
+        // ==========================================
+        // ⚠️ مهم جداً: إعدادات فايربيز (Firebase) ⚠️
+        // ==========================================
+        // يجب استبدال هذه القيم ببيانات مشروعك من موقع Firebase
+        // 1. إعدادات Firebase الخاصة بك
+const firebaseConfig = {
+  apiKey: "AIzaSyAkJiak4M_tAPiFCkBci7JGsrbO25FIEkM",
+  authDomain: "peter-technology.firebaseapp.com",
+  projectId: "peter-technology",
+  storageBucket: "peter-technology.firebasestorage.app",
+  messagingSenderId: "168998744581",
+  appId: "1:168998744581:web:192a5ebc4a05ae1809e26c"
+};
+
+// 2. تهيئة Firebase (باستخدام مكتبات الإصدار الثامن المتوافقة مع كودك)
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+        // ==========================================
+
+        const governorates = [
+            {name: "القاهرة", fee: 50}, {name: "الجيزة", fee: 50}, {name: "الإسكندرية", fee: 60},
+            {name: "القليوبية", fee: 55}, {name: "الشرقية", fee: 60}, {name: "الغربية", fee: 60},
+            {name: "المنوفية", fee: 60}, {name: "البحيرة", fee: 65}, {name: "كفر الشيخ", fee: 65},
+            {name: "دمياط", fee: 70}, {name: "الدقهلية", fee: 65}, {name: "بورسعيد", fee: 70},
+            {name: "الإسماعيلية", fee: 65}, {name: "السويس", fee: 65}, {name: "الفيوم", fee: 70},
+            {name: "بني سويف", fee: 70}, {name: "المنيا", fee: 75}, {name: "أسيوط", fee: 80},
+            {name: "سوهاج", fee: 85}, {name: "قنا", fee: 90}, {name: "الأقصر", fee: 95},
+            {name: "أسوان", fee: 100}, {name: "شمال سيناء", fee: 110}, {name: "جنوب سيناء", fee: 110},
+            {name: "البحر الأحمر", fee: 95}, {name: "الوادي الجديد", fee: 120}, {name: "مطروح", fee: 90}
+        ];
+
+        const ADMIN_USERNAME = "peter334";
+        const ADMIN_PASSWORD = "Peter Technology";
+
+        let products = [];
+        let cart = [];
+        let currentSelectedProductId = null;
+        let currentQty = 1;
+        let selectedCategory = 'الكل';
+        let isAdminLoggedIn = sessionStorage.getItem('peterIsAdmin') === 'true';
+
+        let uploadedImageBase64 = "";
+
+        // جلب البيانات من السيرفر بشكل حي (Real-time)
+        function init() {
+            populateGovernorates();
+            
+            if(isAdminLoggedIn) {
+                document.getElementById('accountPage').style.display = 'none';
+            }
+
+            // مراقب لقاعدة البيانات: أي تغيير في فايربيز هيتسمع هنا فوراً
+            db.collection("products").onSnapshot((querySnapshot) => {
+                products = [];
+                querySnapshot.forEach((doc) => {
+                    products.push(doc.data());
+                });
+                
+                document.getElementById('loader').style.display = 'none'; // إخفاء شاشة التحميل
+                
+                renderCategories();
+                renderStore();
+                if(isAdminLoggedIn) renderAdminProducts();
+            }, (error) => {
+                console.error("خطأ في جلب البيانات:", error);
+                alert("لم نتمكن من جلب المنتجات. تأكد من إعدادات Firebase.");
+                document.getElementById('loader').style.display = 'none';
+            });
+        }
+
+        function populateGovernorates() {
+            const select = document.getElementById('govSelect');
+            select.innerHTML = governorates.map(g => `<option value="${g.fee}">${g.name} (+ ${g.fee} ج.م شحن)</option>`).join('');
+        }
+
+        function switchTab(pageId, element) {
+            document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            
+            let targetPage = pageId;
+            if (pageId === 'accountPage' && isAdminLoggedIn) {
+                targetPage = 'adminPage';
+            }
+            
+            const targetEl = document.getElementById(targetPage);
+            targetEl.classList.add('active');
+            
+            targetEl.classList.remove('animate__fadeIn');
+            void targetEl.offsetWidth; 
+            targetEl.classList.add('animate__fadeIn');
+
+            if(element) element.classList.add('active');
+            if(pageId === 'cartPage') renderCart();
+        }
+
+        function searchProducts(query) {
+            const grid = document.getElementById('productsGrid');
+            const lowerQuery = query.toLowerCase();
+            const filteredProducts = products.filter(p => 
+                (p.name && p.name.toLowerCase().includes(lowerQuery)) || 
+                (p.category && p.category.toLowerCase().includes(lowerQuery))
+            );
+            renderProductsGrid(filteredProducts, grid);
+        }
+
+        function renderCategories() {
+            const container = document.getElementById('categoriesContainer');
+            const uniqueCats = ['الكل', ...new Set(products.map(p => p.category || 'عام'))];
+            container.innerHTML = uniqueCats.map(cat => `
+                <div class="category-pill ${selectedCategory === cat ? 'active' : ''} whitespace-nowrap" onclick="filterCategory('${cat}')">${cat}</div>
+            `).join('');
+        }
+
+        function filterCategory(cat) {
+            selectedCategory = cat;
+            renderCategories();
+            renderStore();
+        }
+
+        function renderStore() {
+            const grid = document.getElementById('productsGrid');
+            const filtered = selectedCategory === 'الكل' ? products : products.filter(p => p.category === selectedCategory);
+            renderProductsGrid(filtered, grid);
+        }
+
+        function renderProductsGrid(productsArray, gridElement) {
+            if(productsArray.length === 0) {
+                gridElement.innerHTML = '<p class="text-center text-zinc-500 py-6 col-span-2">لا توجد منتجات حالياً.</p>';
+                return;
+            }
+            gridElement.innerHTML = productsArray.map(p => `
+                <div class="dark-card cursor-pointer animate__animated animate__fadeInUp" onclick="openProductModal(${p.id})">
+                    <div class="relative h-40 bg-zinc-800">
+                        <span class="absolute top-2 right-2 bg-[#00ff66] text-black text-[10px] font-bold px-2 py-0.5 rounded-full z-10">${p.category || 'عام'}</span>
+                        <img src="${p.image || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover">
+                    </div>
+                    <div class="p-3">
+                        <h3 class="font-bold text-sm h-10 overflow-hidden text-ellipsis">${p.name || 'منتج جديد'}</h3>
+                        <div class="flex justify-between items-center mt-2">
+                            <span class="text-green-400 font-bold text-base">${p.price || 0} ج.م</span>
+                            <div class="w-8 h-8 rounded-lg neon-bg flex items-center justify-center text-black font-bold"><i class="fa-solid fa-plus text-xs"></i></div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openProductModal(id) {
+            const product = products.find(p => p.id === id);
+            currentSelectedProductId = id;
+            currentQty = 1;
+            document.getElementById('modalQty').innerText = currentQty;
+            
+            const mediaContainer = document.getElementById('modalMediaContainer');
+            mediaContainer.innerHTML = `<img src="${product.image || 'https://via.placeholder.com/150'}" class="w-full h-full object-cover">`;
+
+            document.getElementById('modalName').innerText = product.name || 'منتج جديد';
+            document.getElementById('modalCategory').innerText = `الصنف: ${product.category || 'عام'}`;
+            document.getElementById('modalPrice').innerText = `${product.price || 0} ج.م`;
+            
+            document.getElementById('productModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('productModal').classList.add('hidden');
+        }
+
+        function changeQty(val) {
+            currentQty += val;
+            if(currentQty < 1) currentQty = 1;
+            document.getElementById('modalQty').innerText = currentQty;
+        }
+
+        function confirmAddToCart() {
+            const product = products.find(p => p.id === currentSelectedProductId);
+            const selectedColor = document.getElementById('modalColor').value;
+            cart.push({ ...product, qty: currentQty, color: selectedColor });
+            closeModal();
+            alert(`تم إضافة المنتج بنجاح إلى السلة!`);
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cartItems');
+            let subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * item.qty), 0);
+            const shippingFee = Number(document.getElementById('govSelect').value || 0);
+            
+            if(cart.length === 0) {
+                container.innerHTML = '<p class="text-center text-zinc-500 py-6">السلة فارغة حالياً.</p>';
+                document.getElementById('totalPrice').innerText = '0 ج.م';
+                return;
+            }
+
+            container.innerHTML = cart.map((item, index) => `
+                <div class="flex justify-between items-center bg-zinc-900 p-3 rounded-xl mb-2 border border-zinc-800">
+                    <div>
+                        <h4 class="font-bold text-sm">${item.name || 'منتج جديد'} (${item.color})</h4>
+                        <span class="text-xs text-gray-400">العدد: ${item.qty} × ${item.price || 0} ج.م</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-green-400 font-bold">${(item.price || 0) * item.qty} ج.م</span>
+                        <button onclick="removeFromCart(${index})" class="text-red-500"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('totalPrice').innerText = `${subtotal + shippingFee} ج.م`;
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            renderCart();
+        }
+
+        function checkout() {
+            if(cart.length === 0) return alert('السلة فارغة!');
+            
+            const name = document.getElementById('custName').value;
+            const phone = document.getElementById('custPhone').value;
+            const city = document.getElementById('custCity').value;
+            const street = document.getElementById('custStreet').value;
+            const build = document.getElementById('custBuild').value;
+            const floor = document.getElementById('custFloor').value;
+            const e = document.getElementById("govSelect");
+            const govName = e.options[e.selectedIndex].text.split(' ')[0];
+            const shippingFee = Number(e.value || 0);
+            
+            let subtotal = cart.reduce((sum, item) => sum + ((item.price || 0) * item.qty), 0);
+            const total = subtotal + shippingFee;
+
+            if(!name || !phone || !city || !street || !build || !floor) {
+                return alert('رجاءً املأ كل بيانات العنوان للتمكن من الطلب!');
+            }
+
+            let productsText = cart.map(item => `• *${item.name || 'منتج جديد'}*\n  - اللون: ${item.color}\n  - العدد: ${item.qty}\n  - السعر: ${(item.price || 0) * item.qty} ج.م`).join('\n\n');
+            
+            let message = `🚀 *طلب شراء جديد من متجر Peter Technology*\n\n👤 *اسم العميل:* ${name}\n📞 *رقم الموبايل:* ${phone}\n📍 *المحافظة:* ${govName}\n🏠 *العنوان:* حي ${city}، شارع ${street}، عمارة ${build}، شقة ${floor}\n\n📦 *المنتجات:*\n${productsText}\n\n💰 *الشحن:* ${shippingFee} ج.م\n💵 *الإجمالي:* ${total} ج.م`;
+
+            const adminWhatsAppNumber = "01015192240";
+            const encodedMessage = encodeURIComponent(message);
+            window.open(`https://api.whatsapp.com/send?phone=${adminWhatsAppNumber}&text=${encodedMessage}`, '_blank');
+            
+            cart = [];
+            renderCart();
+        }
+
+        function loginAdmin() {
+            const user = document.getElementById('adminUser').value;
+            const pass = document.getElementById('adminPass').value;
+
+            if (user === ADMIN_USERNAME && pass === ADMIN_PASSWORD) {
+                isAdminLoggedIn = true;
+                sessionStorage.setItem('peterIsAdmin', 'true');
+                document.getElementById('accountPage').classList.remove('active');
+                document.getElementById('adminPage').classList.add('active');
+                renderAdminProducts();
+            } else {
+                alert('بيانات الدخول غير صحيحة!');
+            }
+        }
+
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            sessionStorage.removeItem('peterIsAdmin');
+            document.getElementById('adminPage').classList.remove('active');
+            document.getElementById('accountPage').classList.add('active');
+        }
+
+        function handleFileSelect(input, type) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                if (type === 'image') {
+                    uploadedImageBase64 = e.target.result;
+                    document.getElementById('imageFileStatus').innerText = `✓ تم تحميل: ${file.name}`;
+                    document.getElementById('imageFileStatus').classList.add('text-green-400');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // حفظ المنتج في قاعدة بيانات Firebase
+        function saveProduct() {
+            const id = document.getElementById('editId').value;
+            const category = document.getElementById('pCategory').value || 'عام';
+            let name = document.getElementById('pName').value || 'منتج جديد';
+            let price = document.getElementById('pPrice').value || 0;
+            const btn = document.getElementById('saveBtn');
+
+            if (!name && !uploadedImageBase64 && !id) {
+                return alert('يجب إضافة صورة أو اسم للمنتج على الأقل!');
+            }
+
+            btn.innerText = "جاري الحفظ والرفع...";
+            btn.disabled = true;
+
+            const productId = id ? Number(id) : Date.now(); // إنشاء ID فريد بالوقت
+            let finalImage = uploadedImageBase64;
+
+            if (id) {
+                const oldProduct = products.find(p => p.id == id);
+                if (!finalImage && oldProduct) finalImage = oldProduct.image;
+            }
+
+            const productData = {
+                id: productId,
+                category: category,
+                name: name,
+                price: Number(price),
+                image: finalImage
+            };
+
+            // الرفع لـ Firestore
+            db.collection("products").doc(productId.toString()).set(productData)
+            .then(() => {
+                alert('تم حفظ المنتج بنجاح في قاعدة البيانات الحية!');
+                
+                // تفريغ الحقول
+                document.getElementById('editId').value = '';
+                document.getElementById('pCategory').value = '';
+                document.getElementById('pName').value = '';
+                document.getElementById('pPrice').value = '';
+                document.getElementById('imageFileInput').value = '';
+                document.getElementById('imageFileStatus').innerText = 'اضغط لرفع صورة';
+                document.getElementById('imageFileStatus').classList.remove('text-green-400');
+                document.getElementById('formTitle').innerText = 'إضافة منتج جديد';
+                uploadedImageBase64 = "";
+                
+                btn.innerText = "حفظ المنتج في المتجر";
+                btn.disabled = false;
+            })
+            .catch((error) => {
+                console.error("Error adding document: ", error);
+                alert("حدث خطأ أثناء الرفع! تأكد من إعدادات وصلاحيات Firebase.");
+                btn.innerText = "حفظ المنتج في المتجر";
+                btn.disabled = false;
+            });
+        }
+
+        function editProduct(id) {
+            const product = products.find(p => p.id === id);
+            document.getElementById('editId').value = product.id;
+            document.getElementById('pCategory').value = product.category;
+            document.getElementById('pName').value = product.name;
+            document.getElementById('pPrice').value = product.price;
+            document.getElementById('formTitle').innerText = 'تعديل المنتج الحالي';
+            window.scrollTo(0, 0);
+        }
+
+        // مسح المنتج من قاعدة بيانات Firebase
+        function deleteProductAction(id) {
+            if(confirm('هل أنت متأكد من مسح هذا المنتج نهائياً من قاعدة البيانات؟')) {
+                db.collection("products").doc(id.toString()).delete().then(() => {
+                    console.log("تم مسح المنتج بنجاح!");
+                }).catch((error) => {
+                    alert("حدث خطأ أثناء المسح: " + error);
+                });
+            }
+        }
+
+        function renderAdminProducts() {
+            const list = document.getElementById('adminProductsList');
+            list.innerHTML = products.map(p => `
+                <div class="flex justify-between items-center bg-zinc-900 p-3 rounded-xl border border-zinc-800">
+                    <div>
+                        <div class="font-bold text-sm text-white">${p.name || 'منتج جديد'}</div>
+                        <div class="text-xs text-zinc-400">الصنف: <span class="text-green-500">${p.category || 'عام'}</span> | السعر: ${p.price || 0} ج.م</div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="editProduct(${p.id})" class="bg-blue-600 px-3 py-1.5 rounded-lg text-white text-xs"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteProductAction(${p.id})" class="bg-red-600 px-3 py-1.5 rounded-lg text-white text-xs"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // بدء التشغيل
+        window.onload = init;
+    </script>
+</body>
+</html>
